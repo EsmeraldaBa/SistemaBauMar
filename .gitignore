@@ -24,3 +24,8 @@ server/uploads/
 *.p12
 *.pem
 *.jks
+docs/documento_render/*.png
+docs/diagramas/exportados/**/*.png
+docs/BauMar_documentacion_tecnica.docx
+docs/BauMar_documentacion_tecnica.pdf
+docs/diagramas/exportados/.archify-delivery-lock.json

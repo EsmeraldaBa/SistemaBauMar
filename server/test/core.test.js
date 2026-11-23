@@ -11,6 +11,7 @@ import { validateCustomer, validateVehicle, validateWorkshop } from '../src/vali
 import { WorkshopMapAgent, googleMapsDirectionsUrl, workshopAddressText } from '../../src/agents/WorkshopMapAgent.js';
 import { PerformanceAnalystAgent, instrumentDatabasePool } from '../src/agents/PerformanceAnalystAgent.js';
 import { BrowserPerformanceAnalystAgent } from '../../src/agents/BrowserPerformanceAnalystAgent.js';
+import { HttpAdapter } from '../../src/adapters/httpAdapter.js';
 
 test('uuidv7 genera UUID con versión 7 y variante RFC', () => {
   const id = uuidv7();
@@ -25,6 +26,45 @@ test('la entrada Vite pertenece a BauMar y monta React en su nodo raíz', async 
   assert.match(html, /<script\s+type="module"\s+src="\/src\/main\.jsx"\s*>/i);
   assert.match(entry, /createRoot\(document\.getElementById\('root'\)\)/);
   assert.doesNotMatch(html, /Directorio de alumnos|Administración de alumnos/i);
+});
+
+test('el Adapter acepta URL pública HTTPS del API y agrega /api una sola vez', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url) => { calls.push(String(url)); return { ok: true, json: async () => ({ ok: true }) }; };
+  try {
+    await new HttpAdapter('https://baumar-api.onrender.com').get('/auth/health');
+    await new HttpAdapter('https://baumar-api.onrender.com/api/').get('/auth/health');
+    assert.deepEqual(calls, [
+      'https://baumar-api.onrender.com/api/auth/health',
+      'https://baumar-api.onrender.com/api/auth/health',
+    ]);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test('Render Blueprint define API Docker, sitio estático y referencias dinámicas sin secretos versionados', async () => {
+  const blueprint = await readFile(fileURLToPath(new URL('../../render.yaml', import.meta.url)), 'utf8');
+  const nodeVersion = await readFile(fileURLToPath(new URL('../../.node-version', import.meta.url)), 'utf8');
+  assert.match(blueprint, /name: baumar-api[\s\S]*?runtime: docker[\s\S]*?healthCheckPath: \/api\/health/);
+  assert.match(blueprint, /name: baumar-frontend[\s\S]*?runtime: static[\s\S]*?staticPublishPath: \.\/dist/);
+  assert.match(blueprint, /key: DB_PASSWORD\s+sync: false/);
+  assert.match(blueprint, /key: JWT_SECRET\s+generateValue: true/);
+  assert.match(blueprint, /envVarKey: RENDER_EXTERNAL_URL/);
+  assert.equal(nodeVersion.trim(), '22.22.0');
+  assert.doesNotMatch(blueprint, /localhost|127\.0\.0\.1|<HOST>|<PASSWORD>/i);
+});
+
+test('el arranque de Render inicializa el esquema vigente con TLS opcional y recuperación por correo apagada', async () => {
+  const setup = await readFile(fileURLToPath(new URL('../src/dbSetup.js', import.meta.url)), 'utf8');
+  const database = await readFile(fileURLToPath(new URL('../src/db.js', import.meta.url)), 'utf8');
+  const index = await readFile(fileURLToPath(new URL('../src/index.js', import.meta.url)), 'utf8');
+  const auth = await readFile(fileURLToPath(new URL('../src/controllers/authController.js', import.meta.url)), 'utf8');
+  assert.match(setup, /CREATE DATABASE|schema\.sql/);
+  assert.match(setup, /multipleStatements:\s*true/);
+  assert.match(database, /rejectUnauthorized:\s*true/);
+  assert.match(database, /SET time_zone = '\+00:00'/);
+  assert.match(index, /process\.env\.RENDER === 'true'/);
+  assert.match(auth, /if \(!config\.emailEnabled\)[\s\S]*?deshabilitada/);
 });
 
 test('Express conserva el montaje de los routers de autenticación, administración y clientes', async () => {

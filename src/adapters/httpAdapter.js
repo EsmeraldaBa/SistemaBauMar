@@ -1,8 +1,19 @@
-const API_BASE = import.meta.env.VITE_API_BASE || '/api';
+const API_BASE = import.meta.env?.VITE_API_BASE || '/api';
 
 /** Adapter HTTP que traduce llamadas del frontend a fetch/JSON REST y errores de la API a errores de interfaz. */
 export class HttpAdapter {
-  constructor(baseUrl = API_BASE) { this.baseUrl = baseUrl.replace(/\/$/, ''); this.token = null; }
+  constructor(baseUrl = API_BASE) {
+    const configuredBase = String(baseUrl).trim();
+    // Render supplies an HTTPS service URL; local Vite continues using the relative /api proxy.
+    const absoluteBase = /^https?:\/\//i.test(configuredBase)
+      ? configuredBase
+      : configuredBase.startsWith('/')
+        ? configuredBase
+        : `https://${configuredBase}`;
+    const normalizedBase = absoluteBase.replace(/\/+$/, '');
+    this.baseUrl = `${normalizedBase}${/^https?:\/\//i.test(absoluteBase) && !/\/api$/i.test(normalizedBase) ? '/api' : ''}`;
+    this.token = null;
+  }
   setToken(token) { this.token = token || null; }
 
   /** Ejecuta una operación REST y devuelve el JSON tipado; incluye bearer si hay sesión y conserva el folio de error. */

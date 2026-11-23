@@ -73,6 +73,9 @@ export function me(req, res) { res.json({ user: req.auth }); }
 
 /** Emite un token de restablecimiento de un solo uso sin revelar si la cuenta existe, buscando por correo o teléfono. */
 export async function forgotPassword(req, res) {
+  if (!config.emailEnabled) {
+    return res.json({ message: 'La recuperación por correo está deshabilitada en este despliegue. Contacta al administrador del taller.' });
+  }
   const target = String(req.body.identifier || req.body.email || req.body.phoneNumber || '').trim();
   if (!target) throw Object.assign(new Error('Escribe tu correo electrónico o número de teléfono.'), { status: 400 });
 
